@@ -11,7 +11,7 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
         CONTAINER_NAME = "ott-platform-app"
 
-        DOCKER_USER = credentials('DOCKERHUB_CREDENTIALS')
+        DOCKER_USER = credentials('dockerhub-credentials')
     }
 
     stages {
