@@ -78,8 +78,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Deploying with docker-compose...'
-                sh 'docker compose down || true'
-                sh 'docker compose up -d --build'
+                sh 'docker-compose down || true'
+                sh 'docker-compose up -d --build'
             }
         }
     }
