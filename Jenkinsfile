@@ -38,7 +38,6 @@ pipeline {
             steps {
                 echo 'Running unit tests...'
                 sh 'mvn -B test'
-		sh 'find target -type f || true'
             }
             post {
                 always {
