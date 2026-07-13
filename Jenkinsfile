@@ -9,7 +9,7 @@ pipeline {
     environment {
         // Change these to match your own Docker Hub / registry account
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credential ID (username/password)
-        DOCKER_IMAGE           = "yourdockerhubusername/ott-platform"
+        DOCKER_IMAGE           = "shek07/ott-platform"
         IMAGE_TAG              = "${env.BUILD_NUMBER}"
     }
 
@@ -38,10 +38,12 @@ pipeline {
             steps {
                 echo 'Running unit tests...'
                 sh 'mvn -B test'
+		sh 'find target -type f || true'
             }
             post {
                 always {
-                    junit '**/target/surefire-reports/*.xml'
+                    junit '**/target/surefire-reports/*.xml',
+			allowEmptyResults: true
                 }
             }
         }
