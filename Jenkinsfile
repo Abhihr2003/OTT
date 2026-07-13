@@ -74,14 +74,25 @@ pipeline {
                 sh "docker push ${DOCKER_IMAGE}:latest"
             }
         }
+	
+	stage('Deploy') {
+    steps {
+        sh '''
+        docker rm -f ott-platform-app || true
 
-        stage('Deploy') {
-            steps {
-                echo 'Deploying with docker-compose...'
-                sh 'docker-compose down || true'
-                sh 'docker-compose up -d --build'
-            }
-        }
+        docker run -d \
+          --name ott-platform-app \
+          --network ott_default \
+          -p 8081:8080 \
+          -e SPRING_DATASOURCE_URL=jdbc:mysql://ott-mysql:3306/ott_db \
+          -e SPRING_DATASOURCE_USERNAME=admin \
+          -e SPRING_DATASOURCE_PASSWORD=admin123 \
+          shek07/ott-platform:latest
+        '''
+    }
+}
+
+
     }
 
     post {
