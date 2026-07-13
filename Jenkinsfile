@@ -2,20 +2,16 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven3'   // Name must match a Maven installation configured in Jenkins > Global Tool Configuration
-        jdk 'JDK17'      // Name must match a JDK installation configured in Jenkins > Global Tool Configuration
+        jdk 'JDK17'
+        maven 'Maven3'
     }
 
     environment {
-        // Change these to match your own Docker Hub / registry account
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credential ID (username/password)
-        DOCKER_IMAGE           = "shek07/ott-platform"
-        IMAGE_TAG              = "${env.BUILD_NUMBER}"
-    }
+        IMAGE_NAME = "shek07/ott-platform"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        CONTAINER_NAME = "ott-platform-app"
 
-    options {
-        timestamps()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        DOCKER_USER = credentials('DOCKERHUB_CREDENTIALS')
     }
 
     stages {
@@ -29,79 +25,90 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo 'Building with Maven...'
-                sh 'mvn -B clean compile'
+                echo 'Building application...'
+                sh 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running unit tests...'
-                sh 'mvn -B test'
+                echo 'Running tests...'
+                sh 'mvn test'
             }
             post {
                 always {
-                    junit testResults: '**/target/surefire-reports/*.xml',
-			allowEmptyResults: true
+                    junit '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
         stage('Package') {
             steps {
-                echo 'Packaging application as JAR...'
-                sh 'mvn -B package -DskipTests'
-            }
-            post {
-                success {
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-                }
+                echo 'Packaging application...'
+                sh 'mvn clean package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
 
         stage('Docker Build') {
             steps {
                 echo 'Building Docker image...'
-                sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+
+                sh """
+                docker build \
+                -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                -t ${IMAGE_NAME}:latest .
+                """
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                sh '''
+                echo "$DOCKER_USER_PSW" | docker login -u "$DOCKER_USER_USR" --password-stdin
+                '''
             }
         }
 
         stage('Docker Push') {
             steps {
-                echo 'Pushing Docker image to registry...'
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                sh """
+                docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                docker push ${IMAGE_NAME}:latest
+                """
             }
         }
-	
-	stage('Deploy') {
-    steps {
-        sh '''
-        docker rm -f ott-platform-app || true
 
-        docker run -d \
-          --name ott-platform-app \
-          --network ott_default \
-          -p 8081:8080 \
-          -e SPRING_DATASOURCE_URL=jdbc:mysql://ott-mysql:3306/ott_db \
-          -e SPRING_DATASOURCE_USERNAME=admin \
-          -e SPRING_DATASOURCE_PASSWORD=admin123 \
-          shek07/ott-platform:latest
-        '''
-    }
-}
+        stage('Deploy') {
+            steps {
+                echo 'Deploying container...'
 
+                sh '''
+                docker rm -f ott-platform-app || true
 
+                docker run -d \
+                  --name ott-platform-app \
+                  --network bridge \
+                  -p 8081:8080 \
+                  -e SPRING_DATASOURCE_URL=jdbc:mysql://172.17.0.1:3306/employee_db \
+                  -e SPRING_DATASOURCE_USERNAME=admin \
+                  -e SPRING_DATASOURCE_PASSWORD=admin123 \
+                  shek07/ott-platform:latest
+                '''
+            }
+        }
     }
 
     post {
+
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Pipeline completed successfully.'
         }
+
         failure {
-            echo 'Pipeline failed. Check the logs above.'
+            echo 'Pipeline failed.'
         }
+
         always {
             sh 'docker logout || true'
         }
